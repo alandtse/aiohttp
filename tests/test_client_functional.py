@@ -2127,6 +2127,30 @@ async def test_set_cookies_max_age(aiohttp_client) -> None:
     resp.close()
 
 
+async def test_set_cookies_max_age_overflow(aiohttp_client) -> None:
+
+    async def handler(request):
+        ret = web.Response()
+        ret.headers.add('Set-Cookie',
+                        'overflow=overflow; '
+                        'HttpOnly; Path=/'
+                        " Max-Age=" +
+                        str(int(datetime.datetime.max.timestamp())) + "; ")
+        return ret
+
+    app = web.Application()
+    app.router.add_get('/', handler)
+    client = await aiohttp_client(app)
+
+    resp = await client.get('/')
+    assert 200 == resp.status
+    for cookie in client.session.cookie_jar:
+        if cookie.key == 'overflow':
+            assert int(cookie['max-age']) == int(
+                datetime.datetime.max.timestamp())
+    resp.close()
+
+
 async def test_request_conn_error() -> None:
     client = aiohttp.ClientSession()
     with pytest.raises(aiohttp.ClientConnectionError):
