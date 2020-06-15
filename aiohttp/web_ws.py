@@ -45,8 +45,11 @@ class WebSocketReady:
 
 
 class WebSocketResponse(StreamResponse):
-
-    _length_check = False
+    __slots__ = ('_protocols', '_ws_protocol', '_writer', '_reader', '_closed',
+                 '_closing', '_conn_lost', '_close_code', '_loop', '_waiting',
+                 '_exception', '_timeout', '_receive_timeout', '_autoclose',
+                 '_autoping', '_heartbeat', '_heartbeat_cb', '_pong_heartbeat',
+                 '_pong_response_cb', '_compress', '_max_msg_size')
 
     def __init__(self, *,
                  timeout: float=10.0, receive_timeout: Optional[float]=None,
@@ -55,6 +58,7 @@ class WebSocketResponse(StreamResponse):
                  protocols: Iterable[str]=(),
                  compress: bool=True, max_msg_size: int=4*1024*1024) -> None:
         super().__init__(status=101)
+        self._length_check = False
         self._protocols = protocols
         self._ws_protocol = None  # type: Optional[str]
         self._writer = None  # type: Optional[WebSocketWriter]
@@ -176,7 +180,7 @@ class WebSocketResponse(StreamResponse):
         accept_val = base64.b64encode(
             hashlib.sha1(key.encode() + WS_KEY).digest()).decode()
         response_headers = CIMultiDict(  # type: ignore
-            {hdrs.UPGRADE: 'websocket',
+            {hdrs.UPGRADE: 'websocket',  # type: ignore
              hdrs.CONNECTION: 'upgrade',
              hdrs.SEC_WEBSOCKET_ACCEPT: accept_val})
 
@@ -205,8 +209,6 @@ class WebSocketResponse(StreamResponse):
         headers, protocol, compress, notakeover = self._handshake(
             request)
 
-        self._reset_heartbeat()
-
         self.set_status(101)
         self.headers.update(headers)
         self.force_close()
@@ -224,6 +226,9 @@ class WebSocketResponse(StreamResponse):
                     protocol: str, writer: WebSocketWriter) -> None:
         self._ws_protocol = protocol
         self._writer = writer
+
+        self._reset_heartbeat()
+
         loop = self._loop
         assert loop is not None
         self._reader = FlowControlDataQueue(
@@ -337,7 +342,7 @@ class WebSocketResponse(StreamResponse):
             reader = self._reader
             assert reader is not None
             try:
-                with async_timeout.timeout(self._timeout, loop=self._loop):
+                async with async_timeout.timeout(self._timeout):
                     msg = await reader.read()
             except asyncio.CancelledError:
                 self._close_code = 1006
@@ -379,8 +384,8 @@ class WebSocketResponse(StreamResponse):
             try:
                 self._waiting = loop.create_future()
                 try:
-                    with async_timeout.timeout(
-                            timeout or self._receive_timeout, loop=self._loop):
+                    async with async_timeout.timeout(
+                            timeout or self._receive_timeout):
                         msg = await self._reader.read()
                     self._reset_heartbeat()
                 finally:
@@ -454,3 +459,7 @@ class WebSocketResponse(StreamResponse):
                         WSMsgType.CLOSED):
             raise StopAsyncIteration  # NOQA
         return msg
+
+    def _cancel(self, exc: BaseException) -> None:
+        if self._reader is not None:
+            self._reader.set_exception(exc)

@@ -109,6 +109,12 @@ They may be perfect or not -- we don't know.
 Please add your library reference here first and after some time
 period ask to raise the status.
 
+- `octomachinery <https://octomachinery.dev>`_ A framework for developing
+  GitHub Apps and GitHub Actions. Python 3.7+ is required.
+
+- `aiomixcloud <https://github.com/amikrop/aiomixcloud>`_
+  Mixcloud API wrapper for Python and Async IO.
+
 - `aiohttp-cache <https://github.com/cr0hn/aiohttp-cache>`_ A cache
   system for aiohttp server.
 
@@ -120,6 +126,9 @@ period ask to raise the status.
 
 - `aiohttp-swagger <https://github.com/cr0hn/aiohttp-swagger>`_
   Swagger API Documentation builder for aiohttp server.
+
+- `aiohttp-swagger3 <https://github.com/hh-h/aiohttp-swagger3>`_
+  Library for Swagger documentation builder and validating aiohttp requests using swagger specification 3.0.
 
 - `aiohttp-swaggerify <https://github.com/dchaplinsky/aiohttp_swaggerify>`_
   Library to automatically generate swagger2.0 definition for aiohttp endpoints.
@@ -172,6 +181,9 @@ period ask to raise the status.
 - `gidgethub <https://github.com/brettcannon/gidgethub>`_ An async
   GitHub API library for Python.
 
+- `aiohttp-rpc <https://github.com/expert-m/aiohttp-rpc>`_ A simple
+  JSON-RPC for aiohttp.
+
 - `aiohttp_jrpc <https://github.com/zloidemon/aiohttp_jrpc>`_ aiohttp
   JSON-RPC service.
 
@@ -199,6 +211,12 @@ period ask to raise the status.
   Open-source home automation platform running on Python 3.
 
 - `discord.py <https://github.com/Rapptz/discord.py>`_ Discord client library.
+
+- `aiogram <https://github.com/aiogram/aiogram>`_
+  A fully asynchronous library for Telegram Bot API written with asyncio and aiohttp.
+  
+- `vk.py <https://github.com/prostomarkeloff/vk.py>`_
+  Extremely-fast Python 3.6+ toolkit for create applications work`s with VKAPI.
 
 - `aiohttp-graphql <https://github.com/graphql-python/aiohttp-graphql>`_
   GraphQL and GraphIQL interface for aiohttp.
@@ -234,3 +252,6 @@ period ask to raise the status.
 
 - `aiogmaps <https://github.com/hzlmn/aiogmaps>`_
   Asynchronous client for Google Maps API Web Services. Python 3.6+ required.
+
+- `DBGR <https://github.com/JakubTesarek/dbgr>`_
+  Terminal based tool to test and debug HTTP APIs with ``aiohttp``.

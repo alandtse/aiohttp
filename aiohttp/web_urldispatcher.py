@@ -1,14 +1,10 @@
 import abc
-import asyncio
 import base64
 import hashlib
-import inspect
 import keyword
 import os
 import re
-import warnings
 from contextlib import contextmanager
-from functools import wraps
 from pathlib import Path
 from types import MappingProxyType
 from typing import (  # noqa
@@ -36,7 +32,7 @@ from yarl import URL
 
 from . import hdrs
 from .abc import AbstractMatchInfo, AbstractRouter, AbstractView
-from .helpers import DEBUG
+from .helpers import DEBUG, iscoroutinefunction
 from .http import HttpVersion11
 from .typedefs import PathLike
 from .web_exceptions import (
@@ -131,34 +127,20 @@ class AbstractRoute(abc.ABC):
         if expect_handler is None:
             expect_handler = _default_expect_handler
 
-        assert asyncio.iscoroutinefunction(expect_handler), \
+        assert iscoroutinefunction(expect_handler), \
             'Coroutine is expected, got {!r}'.format(expect_handler)
 
         method = method.upper()
         if not HTTP_METHOD_RE.match(method):
             raise ValueError("{} is not allowed HTTP method".format(method))
 
-        assert callable(handler), handler
-        if asyncio.iscoroutinefunction(handler):
+        if iscoroutinefunction(handler):
             pass
-        elif inspect.isgeneratorfunction(handler):
-            warnings.warn("Bare generators are deprecated, "
-                          "use @coroutine wrapper", DeprecationWarning)
-        elif (isinstance(handler, type) and
-              issubclass(handler, AbstractView)):
+        elif isinstance(handler, type) and issubclass(handler, AbstractView):
             pass
         else:
-            warnings.warn("Bare functions are deprecated, "
-                          "use async ones", DeprecationWarning)
-
-            @wraps(handler)
-            async def handler_wrapper(request: Request) -> StreamResponse:
-                result = old_handler(request)
-                if asyncio.iscoroutine(result):
-                    return await result
-                return result  # type: ignore
-            old_handler = handler
-            handler = handler_wrapper
+            raise TypeError("Only async functions are allowed as web-handlers "
+                            ", got {!r}".format(handler))
 
         self._method = method
         self._handler = handler
@@ -553,7 +535,7 @@ class StaticResource(PrefixResource):
             if filepath.is_file():
                 # TODO cache file content
                 # with file watcher for cache invalidation
-                with open(str(filepath), mode='rb') as f:
+                with filepath.open('rb') as f:
                     file_bytes = f.read()
                 h = self._get_file_hash(file_bytes)
                 url = url.with_query({self.VERSION_KEY: h})
@@ -569,7 +551,8 @@ class StaticResource(PrefixResource):
 
     def get_info(self) -> Dict[str, Any]:
         return {'directory': self._directory,
-                'prefix': self._prefix}
+                'prefix': self._prefix,
+                'routes': self._routes}
 
     def set_options_route(self, handler: _WebHandler) -> None:
         if 'OPTIONS' in self._routes:
@@ -1126,10 +1109,15 @@ class UrlDispatcher(AbstractRouter, Mapping[str, AbstractResource]):
         for resource in self._resources:
             resource.freeze()
 
-    def add_routes(self, routes: Iterable[AbstractRouteDef]) -> None:
+    def add_routes(self,
+                   routes: Iterable[AbstractRouteDef]) -> List[AbstractRoute]:
         """Append routes to route table.
 
         Parameter should be a sequence of RouteDef objects.
+
+        Returns a list of registered AbstractRoute instances.
         """
+        registered_routes = []
         for route_def in routes:
-            route_def.register(self)
+            registered_routes.extend(route_def.register(self))
+        return registered_routes

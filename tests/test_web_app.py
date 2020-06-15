@@ -2,129 +2,20 @@ import asyncio
 from unittest import mock
 
 import pytest
-from async_generator import async_generator, yield_
 
 from aiohttp import log, web
-from aiohttp.abc import AbstractAccessLogger, AbstractRouter
-from aiohttp.helpers import DEBUG, PY_36
+from aiohttp.helpers import PY_36
 from aiohttp.test_utils import make_mocked_coro
 
 
 async def test_app_ctor() -> None:
-    loop = asyncio.get_event_loop()
-    with pytest.warns(DeprecationWarning):
-        app = web.Application(loop=loop)
-    with pytest.warns(DeprecationWarning):
-        assert loop is app.loop
+    app = web.Application()
     assert app.logger is log.web_logger
 
 
 def test_app_call() -> None:
     app = web.Application()
     assert app is app()
-
-
-def test_app_default_loop() -> None:
-    app = web.Application()
-    with pytest.warns(DeprecationWarning):
-        assert app.loop is None
-
-
-async def test_set_loop() -> None:
-    loop = asyncio.get_event_loop()
-    app = web.Application()
-    app._set_loop(loop)
-    with pytest.warns(DeprecationWarning):
-        assert app.loop is loop
-
-
-def test_set_loop_default_loop() -> None:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    app = web.Application()
-    app._set_loop(None)
-    with pytest.warns(DeprecationWarning):
-        assert app.loop is loop
-    asyncio.set_event_loop(None)
-
-
-def test_set_loop_with_different_loops() -> None:
-    loop = asyncio.new_event_loop()
-    app = web.Application()
-    app._set_loop(loop)
-    with pytest.warns(DeprecationWarning):
-        assert app.loop is loop
-
-    with pytest.raises(RuntimeError):
-        app._set_loop(loop=object())
-
-
-@pytest.mark.parametrize('debug', [True, False])
-async def test_app_make_handler_debug_exc(mocker, debug) -> None:
-    with pytest.warns(DeprecationWarning):
-        app = web.Application(debug=debug)
-    srv = mocker.patch('aiohttp.web_app.Server')
-
-    with pytest.warns(DeprecationWarning):
-        assert app.debug == debug
-
-    app._make_handler()
-    srv.assert_called_with(app._handle,
-                           request_factory=app._make_request,
-                           access_log_class=mock.ANY,
-                           loop=asyncio.get_event_loop(),
-                           debug=debug)
-
-
-async def test_app_make_handler_args(mocker) -> None:
-    app = web.Application(handler_args={'test': True})
-    srv = mocker.patch('aiohttp.web_app.Server')
-
-    app._make_handler()
-    srv.assert_called_with(app._handle,
-                           request_factory=app._make_request,
-                           access_log_class=mock.ANY,
-                           loop=asyncio.get_event_loop(),
-                           debug=mock.ANY, test=True)
-
-
-async def test_app_make_handler_access_log_class(mocker) -> None:
-    class Logger:
-        pass
-
-    app = web.Application()
-
-    with pytest.raises(TypeError):
-        app._make_handler(access_log_class=Logger)
-
-    class Logger(AbstractAccessLogger):
-
-        def log(self, request, response, time):
-            self.logger.info('msg')
-
-    srv = mocker.patch('aiohttp.web_app.Server')
-
-    app._make_handler(access_log_class=Logger)
-    srv.assert_called_with(app._handle,
-                           access_log_class=Logger,
-                           request_factory=app._make_request,
-                           loop=asyncio.get_event_loop(),
-                           debug=mock.ANY)
-
-    app = web.Application(handler_args={'access_log_class': Logger})
-    app._make_handler(access_log_class=Logger)
-    srv.assert_called_with(app._handle,
-                           access_log_class=Logger,
-                           request_factory=app._make_request,
-                           loop=asyncio.get_event_loop(),
-                           debug=mock.ANY)
-
-
-async def test_app_make_handler_raises_deprecation_warning() -> None:
-    app = web.Application()
-
-    with pytest.warns(DeprecationWarning):
-        app.make_handler()
 
 
 async def test_app_register_on_finish() -> None:
@@ -152,13 +43,6 @@ async def test_app_register_coro() -> None:
     await app.cleanup()
     assert fut.done()
     assert 123 == fut.result()
-
-
-def test_non_default_router() -> None:
-    router = mock.Mock(spec=AbstractRouter)
-    with pytest.warns(DeprecationWarning):
-        app = web.Application(router=router)
-    assert router is app.router
 
 
 def test_logging() -> None:
@@ -253,7 +137,6 @@ def test_app_run_middlewares() -> None:
     root.freeze()
     assert root._run_middlewares is False
 
-    @web.middleware
     async def middleware(request, handler):
         return await handler(request)
 
@@ -282,16 +165,14 @@ def test_subapp_pre_frozen_after_adding() -> None:
 @pytest.mark.skipif(not PY_36,
                     reason="Python 3.6+ required")
 def test_app_inheritance() -> None:
-    with pytest.warns(DeprecationWarning):
+    with pytest.raises(TypeError):
         class A(web.Application):
             pass
 
 
-@pytest.mark.skipif(not DEBUG,
-                    reason="The check is applied in DEBUG mode only")
 def test_app_custom_attr() -> None:
     app = web.Application()
-    with pytest.warns(DeprecationWarning):
+    with pytest.raises(AttributeError):
         app.custom = None
 
 
@@ -300,10 +181,9 @@ async def test_cleanup_ctx() -> None:
     out = []
 
     def f(num):
-        @async_generator
         async def inner(app):
             out.append('pre_' + str(num))
-            await yield_(None)
+            yield None
             out.append('post_' + str(num))
         return inner
 
@@ -323,12 +203,11 @@ async def test_cleanup_ctx_exception_on_startup() -> None:
     exc = Exception('fail')
 
     def f(num, fail=False):
-        @async_generator
         async def inner(app):
             out.append('pre_' + str(num))
             if fail:
                 raise exc
-            await yield_(None)
+            yield None
             out.append('post_' + str(num))
         return inner
 
@@ -351,10 +230,9 @@ async def test_cleanup_ctx_exception_on_cleanup() -> None:
     exc = Exception('fail')
 
     def f(num, fail=False):
-        @async_generator
         async def inner(app):
             out.append('pre_' + str(num))
-            await yield_(None)
+            yield None
             out.append('post_' + str(num))
             if fail:
                 raise exc
@@ -377,10 +255,9 @@ async def test_cleanup_ctx_exception_on_cleanup_multiple() -> None:
     out = []
 
     def f(num, fail=False):
-        @async_generator
         async def inner(app):
             out.append('pre_' + str(num))
-            await yield_(None)
+            yield None
             out.append('post_' + str(num))
             if fail:
                 raise Exception('fail_' + str(num))
@@ -406,12 +283,11 @@ async def test_cleanup_ctx_multiple_yields() -> None:
     out = []
 
     def f(num):
-        @async_generator
         async def inner(app):
             out.append('pre_' + str(num))
-            await yield_(None)
+            yield None
             out.append('post_' + str(num))
-            await yield_(None)
+            yield None
         return inner
 
     app.cleanup_ctx.append(f(1))
@@ -496,12 +372,11 @@ async def test_subapp_on_startup(aiohttp_client) -> None:
     ctx_pre_called = False
     ctx_post_called = False
 
-    @async_generator
     async def cleanup_ctx(app):
         nonlocal ctx_pre_called, ctx_post_called
         ctx_pre_called = True
         app['cleanup'] = True
-        await yield_(None)
+        yield None
         ctx_post_called = True
 
     subapp.cleanup_ctx.append(cleanup_ctx)
@@ -560,6 +435,21 @@ def test_app_iter():
     app['a'] = '1'
     app['b'] = '2'
     assert sorted(list(app)) == ['a', 'b']
+
+
+def test_app_forbid_nonslot_attr():
+    app = web.Application()
+    with pytest.raises(AttributeError):
+        app.unknow_attr
+    with pytest.raises(AttributeError):
+        app.unknow_attr = 1
+
+
+def test_forbid_changing_frozen_app() -> None:
+    app = web.Application()
+    app.freeze()
+    with pytest.raises(RuntimeError):
+        app['key'] = 'value'
 
 
 def test_app_boolean() -> None:

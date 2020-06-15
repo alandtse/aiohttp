@@ -1,11 +1,8 @@
-"""Tests for client_exceptions.py"""
+# Tests for client_exceptions.py
 
 import errno
 import pickle
 import sys
-from unittest import mock
-
-import pytest
 
 from aiohttp import client, client_reqrep
 
@@ -78,36 +75,6 @@ class TestClientResponseError:
                                          headers={})
         assert str(err) == ("400, message='Something wrong', "
                             "url='http://example.com'")
-
-
-def test_response_status() -> None:
-    request_info = mock.Mock(real_url='http://example.com')
-    err = client.ClientResponseError(status=400,
-                                     history=None,
-                                     request_info=request_info)
-    assert err.status == 400
-
-
-def test_response_deprecated_code_property() -> None:
-    request_info = mock.Mock(real_url='http://example.com')
-    with pytest.warns(DeprecationWarning):
-        err = client.ClientResponseError(code=400,
-                                         history=None,
-                                         request_info=request_info)
-    with pytest.warns(DeprecationWarning):
-        assert err.code == err.status
-    with pytest.warns(DeprecationWarning):
-        err.code = '404'
-    with pytest.warns(DeprecationWarning):
-        assert err.code == err.status
-
-
-def test_response_both_code_and_status() -> None:
-    with pytest.raises(ValueError):
-        client.ClientResponseError(code=400,
-                                   status=400,
-                                   history=None,
-                                   request_info=None)
 
 
 class TestClientConnectorError:
@@ -211,7 +178,7 @@ class TestClientConnectorCertificateError:
 class TestServerDisconnectedError:
     def test_ctor(self) -> None:
         err = client.ServerDisconnectedError()
-        assert err.message is None
+        assert err.message == 'Server disconnected'
 
         err = client.ServerDisconnectedError(message='No connection')
         assert err.message == 'No connection'
@@ -227,7 +194,12 @@ class TestServerDisconnectedError:
 
     def test_repr(self) -> None:
         err = client.ServerDisconnectedError()
-        assert repr(err) == "ServerDisconnectedError()"
+        if sys.version_info < (3, 7):
+            assert repr(err) == ("ServerDisconnectedError"
+                                 "('Server disconnected',)")
+        else:
+            assert repr(err) == ("ServerDisconnectedError"
+                                 "('Server disconnected')")
 
         err = client.ServerDisconnectedError(message='No connection')
         if sys.version_info < (3, 7):
@@ -237,7 +209,7 @@ class TestServerDisconnectedError:
 
     def test_str(self) -> None:
         err = client.ServerDisconnectedError()
-        assert str(err) == ''
+        assert str(err) == 'Server disconnected'
 
         err = client.ServerDisconnectedError(message='No connection')
         assert str(err) == 'No connection'

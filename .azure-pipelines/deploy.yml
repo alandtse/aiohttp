@@ -24,8 +24,6 @@ stages:
 - template: stage-lint.yml
 
 - template: stage-test.yml
-  parameters:
-    codecov.token: '$(codecov.token)'
 
 - stage: build
   displayName: 'Build'
@@ -51,14 +49,14 @@ stages:
     displayName: 'Manylinux'
     strategy:
       matrix:
-        py35 x64:
-          python.code: 'cp35-cp35m'
-          manylinux: 'manylinux_64'
         py36 x64:
           python.code: 'cp36-cp36m'
           manylinux: 'manylinux_64'
         py37 x64:
           python.code: 'cp37-cp37m'
+          manylinux: 'manylinux_64'
+        py38 x64:
+          python.code: 'cp38-cp38'
           manylinux: 'manylinux_64'
     pool:
       vmImage: 'ubuntu-latest'
@@ -94,10 +92,6 @@ stages:
   - job:
     strategy:
       matrix:
-        Win py35 x64:
-          python.version: '3.5'
-          python.architecture: 'x64'
-          image: 'windows-latest'
         Win py36 x64:
           python.version: '3.6'
           python.architecture: 'x64'
@@ -106,9 +100,9 @@ stages:
           python.version: '3.7'
           python.architecture: 'x64'
           image: 'windows-latest'
-        Win py35 x86:
-          python.version: '3.5'
-          python.architecture: 'x86'
+        Win py38 x64:
+          python.version: '3.8'
+          python.architecture: 'x64'
           image: 'windows-latest'
         Win py36 x86:
           python.version: '3.6'
@@ -118,16 +112,20 @@ stages:
           python.version: '3.7'
           python.architecture: 'x86'
           image: 'windows-latest'
-        Mac py35:
-          python.version: '3.5'
-          image: 'macos-latest'
-          python.architecture: 'x64'
+        Win py38 x86:
+          python.version: '3.8'
+          python.architecture: 'x86'
+          image: 'windows-latest'
         Mac py36:
           python.version: '3.6'
           image: 'macos-latest'
           python.architecture: 'x64'
         Mac py37:
           python.version: '3.7'
+          image: 'macos-latest'
+          python.architecture: 'x64'
+        Mac py38:
+          python.version: '3.8'
           image: 'macos-latest'
           python.architecture: 'x64'
     pool:

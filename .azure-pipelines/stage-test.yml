@@ -1,6 +1,3 @@
-parameters:
-  codecov.token: ''
-
 stages:
 - stage: test
   displayName: 'Run tests'
@@ -9,10 +6,6 @@ stages:
   - job:
     strategy:
       matrix:
-        Py35-Cython-Linux:
-          python.version: '3.5'
-          no_extensions: ''
-          image: 'ubuntu-latest'
         Py36-Cython-Linux:
           python.version: '3.6'
           no_extensions: ''
@@ -21,9 +14,9 @@ stages:
           python.version: '3.7'
           no_extensions: ''
           image: 'ubuntu-latest'
-        Py35-Pure-Linux:
-          python.version: '3.5'
-          no_extensions: 'Y'
+        Py38-Cython-Linux:
+          python.version: '3.8'
+          no_extensions: ''
           image: 'ubuntu-latest'
         Py36-Pure-Linux:
           python.version: '3.6'
@@ -33,32 +26,36 @@ stages:
           python.version: '3.7'
           no_extensions: 'Y'
           image: 'ubuntu-latest'
+        Py38-Pure-Linux:
+          python.version: '3.8'
+          no_extensions: 'Y'
+          image: 'ubuntu-latest'
 #        PyPy3-Linux:
 #          python.version: 'pypy3'
 #          no_extensions: 'Y'
 #          image: 'ubuntu-latest'
-        # Py35-Cython-Win:
-        #   python.version: '3.5'
-        #   no_extensions: ''
-        #   image: 'windows-latest'
-        # Py36-Cython-Win:
-        #   python.version: '3.6'
-        #   no_extensions: ''
-        #   image: 'windows-latest'
-        # Py37-Cython-Win:
-        #   python.version: '3.7'
-        #   no_extensions: ''
-        #   image: 'windows-latest'
-        Py35-Cython-Mac:
-          python.version: '3.5'
+        Py36-Cython-Win:
+          python.version: '3.6'
           no_extensions: ''
-          image: 'macos-latest'
+          image: 'windows-latest'
+        Py37-Cython-Win:
+          python.version: '3.7'
+          no_extensions: ''
+          image: 'windows-latest'
+        Py38-Cython-Win:
+          python.version: '3.8'
+          no_extensions: ''
+          image: 'windows-latest'
         Py36-Cython-Mac:
           python.version: '3.6'
           no_extensions: ''
           image: 'macos-latest'
         Py37-Cython-Mac:
           python.version: '3.7'
+          no_extensions: ''
+          image: 'macos-latest'
+        Py38-Cython-Mac:
+          python.version: '3.8'
           no_extensions: ''
           image: 'macos-latest'
     pool:
@@ -77,7 +74,7 @@ stages:
         architecture: 'x64'
 
     - script: |
-        python -m pip install --upgrade pip setuptools
+        python -m pip install --upgrade pip setuptools wheel
       displayName: 'Update pip'
 
     - script: |
@@ -86,15 +83,18 @@ stages:
       displayName: 'Cythonize'
 
     - script: |
-        pip install -r requirements/dev.txt
+        pip install -r requirements/dev.txt pytest-azurepipelines
       displayName: 'Install dependencies'
       env:
         AIOHTTP_NO_EXTENSIONS: '$(no_extensions)'
 
     - script: |
         pytest tests -vv
-        python -m coverage xml
       displayName: 'pytest'
+
+    - script: |
+        python -m coverage xml
+      displayName: 'Prepare coverage'
 
     - script: |
         pip install codecov
@@ -102,4 +102,4 @@ stages:
       displayName: 'Upload coverage reports'
       condition: ne(variables['codecov.token'], '')
       env:
-        CODECOV_TOKEN: '$(codecov.token)'
+        CODECOV_TOKEN: $(codecov.token)

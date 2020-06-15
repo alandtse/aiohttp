@@ -1,9 +1,9 @@
+.. currentmodule:: aiohttp
+
 .. _aiohttp-streams:
 
 Streaming API
 =============
-
-.. currentmodule:: aiohttp
 
 
 ``aiohttp`` uses streams for retrieving *BODIES*:

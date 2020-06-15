@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Tests for aiohttp/client.py"""
+# Tests for aiohttp/client.py
 
 import gc
 import sys
+from json import JSONDecodeError
 from unittest import mock
 
 import pytest
@@ -155,19 +156,6 @@ def test_repr_non_ascii_reason() -> None:
     response.reason = '\u03bb'
     assert "<ClientResponse(http://fake-host.org/path) [None \\u03bb]>"\
         in repr(response)
-
-
-def test_url_obj_deprecated() -> None:
-    response = ClientResponse('get', URL('http://fake-host.org/'),
-                              request_info=mock.Mock(),
-                              writer=mock.Mock(),
-                              continue100=None,
-                              timer=TimerNoop(),
-                              traces=[],
-                              loop=mock.Mock(),
-                              session=mock.Mock())
-    with pytest.warns(DeprecationWarning):
-        response.url_obj
 
 
 async def test_read_and_release_connection(loop, session) -> None:
@@ -436,6 +424,33 @@ async def test_text_detect_encoding_if_invalid_charset(loop, session) -> None:
     assert response.get_encoding().lower() in ('windows-1251', 'maccyrillic')
 
 
+async def test_get_encoding_body_none(loop, session) -> None:
+    response = ClientResponse('get', URL('http://def-cl-resp.org'),
+                              request_info=mock.Mock(),
+                              writer=mock.Mock(),
+                              continue100=None,
+                              timer=TimerNoop(),
+                              traces=[],
+                              loop=loop,
+                              session=session)
+
+    def side_effect(*args, **kwargs):
+        fut = loop.create_future()
+        fut.set_result('{"encoding": "test"}')
+        return fut
+
+    response._headers = {'Content-Type': 'text/html'}
+    content = response.content = mock.Mock()
+    content.read.side_effect = side_effect
+
+    with pytest.raises(
+        RuntimeError,
+        match='^Cannot guess the encoding of a not yet read body$',
+    ):
+        response.get_encoding()
+    assert response.closed
+
+
 async def test_text_after_read(loop, session) -> None:
     response = ClientResponse('get', URL('http://def-cl-resp.org'),
                               request_info=mock.Mock(),
@@ -586,11 +601,11 @@ async def test_json_no_content(loop, session) -> None:
                               loop=loop,
                               session=session)
     response._headers = {
-        'Content-Type': 'data/octet-stream'}
+        'Content-Type': 'application/json'}
     response._body = b''
 
-    res = await response.json(content_type=None)
-    assert res is None
+    with pytest.raises(JSONDecodeError):
+        await response.json(content_type=None)
 
 
 async def test_json_override_encoding(loop, session) -> None:

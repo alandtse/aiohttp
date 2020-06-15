@@ -43,6 +43,7 @@ from .helpers import (  # noqa
     BasicAuth,
     HeadersMixin,
     TimerNoop,
+    is_expected_content_type,
     noop,
     reify,
     set_result,
@@ -78,9 +79,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from .client import ClientSession  # noqa
     from .connector import Connection  # noqa
     from .tracing import Trace  # noqa
-
-
-json_re = re.compile(r'^application/(?:[\w.+-]+?\+)?json')
 
 
 @attr.s(frozen=True, slots=True)
@@ -142,46 +140,6 @@ else:  # pragma: no cover
     SSL_ALLOWED_TYPES = type(None)
 
 
-def _merge_ssl_params(
-        ssl: Union['SSLContext', bool, Fingerprint, None],
-        verify_ssl: Optional[bool],
-        ssl_context: Optional['SSLContext'],
-        fingerprint: Optional[bytes]
-) -> Union['SSLContext', bool, Fingerprint, None]:
-    if verify_ssl is not None and not verify_ssl:
-        warnings.warn("verify_ssl is deprecated, use ssl=False instead",
-                      DeprecationWarning,
-                      stacklevel=3)
-        if ssl is not None:
-            raise ValueError("verify_ssl, ssl_context, fingerprint and ssl "
-                             "parameters are mutually exclusive")
-        else:
-            ssl = False
-    if ssl_context is not None:
-        warnings.warn("ssl_context is deprecated, use ssl=context instead",
-                      DeprecationWarning,
-                      stacklevel=3)
-        if ssl is not None:
-            raise ValueError("verify_ssl, ssl_context, fingerprint and ssl "
-                             "parameters are mutually exclusive")
-        else:
-            ssl = ssl_context
-    if fingerprint is not None:
-        warnings.warn("fingerprint is deprecated, "
-                      "use ssl=Fingerprint(fingerprint) instead",
-                      DeprecationWarning,
-                      stacklevel=3)
-        if ssl is not None:
-            raise ValueError("verify_ssl, ssl_context, fingerprint and ssl "
-                             "parameters are mutually exclusive")
-        else:
-            ssl = Fingerprint(fingerprint)
-    if not isinstance(ssl, SSL_ALLOWED_TYPES):
-        raise TypeError("ssl should be SSLContext, bool, Fingerprint or None, "
-                        "got {!r} instead.".format(ssl))
-    return ssl
-
-
 @attr.s(slots=True, frozen=True)
 class ConnectionKey:
     # the key should contain an information about used proxy / TLS
@@ -193,13 +151,6 @@ class ConnectionKey:
     proxy = attr.ib()  # type: Optional[URL]
     proxy_auth = attr.ib()  # type: Optional[BasicAuth]
     proxy_headers_hash = attr.ib(type=int)  # type: Optional[int] # noqa # hash(CIMultiDict)
-
-
-def _is_expected_content_type(response_content_type: str,
-                              expected_content_type: str) -> bool:
-    if expected_content_type == 'application/json':
-        return json_re.match(response_content_type) is not None
-    return expected_content_type in response_content_type
 
 
 class ClientRequest:
@@ -240,7 +191,7 @@ class ClientRequest:
                  compress: Optional[str]=None,
                  chunked: Optional[bool]=None,
                  expect100: bool=False,
-                 loop: Optional[asyncio.AbstractEventLoop]=None,
+                 loop: asyncio.AbstractEventLoop,
                  response_class: Optional[Type['ClientResponse']]=None,
                  proxy: Optional[URL]=None,
                  proxy_auth: Optional[BasicAuth]=None,
@@ -249,9 +200,6 @@ class ClientRequest:
                  ssl: Union[SSLContext, bool, Fingerprint, None]=None,
                  proxy_headers: Optional[LooseHeaders]=None,
                  traces: Optional[List['Trace']]=None):
-
-        if loop is None:
-            loop = asyncio.get_event_loop()
 
         assert isinstance(url, URL), url
         assert isinstance(proxy, (URL, type(None))), proxy
@@ -318,7 +266,7 @@ class ClientRequest:
 
     @property
     def host(self) -> str:
-        ret = self.url.host
+        ret = self.url.raw_host
         assert ret is not None
         return ret
 
@@ -335,7 +283,7 @@ class ClientRequest:
     def update_host(self, url: URL) -> None:
         """Update destination host, port and connection type (ssl)."""
         # get host/port
-        if not url.host:
+        if not url.raw_host:
             raise InvalidURL(url)
 
         # basic auth info
@@ -399,7 +347,7 @@ class ClientRequest:
         if not cookies:
             return
 
-        c = SimpleCookie()
+        c = SimpleCookie()  # type: SimpleCookie[str]
         if hdrs.COOKIE in self.headers:
             c.load(self.headers.get(hdrs.COOKIE, ''))
             del self.headers[hdrs.COOKIE]
@@ -687,13 +635,14 @@ class ClientResponse(HeadersMixin):
                  loop: asyncio.AbstractEventLoop,
                  session: 'ClientSession') -> None:
         assert isinstance(url, URL)
+        super().__init__()
 
         self.method = method
         self.cookies = []  # type: List[Tuple[str, BaseCookie[str]]]
 
         self._real_url = url
         self._url = url.with_fragment(None)
-        self._body = None  # type: Any
+        self._body = None  # type: Optional[bytes]
         self._writer = writer  # type: Optional[asyncio.Task[None]]
         self._continue = continue100  # None by default
         self._closed = True
@@ -710,12 +659,6 @@ class ClientResponse(HeadersMixin):
 
     @reify
     def url(self) -> URL:
-        return self._url
-
-    @reify
-    def url_obj(self) -> URL:
-        warnings.warn(
-            "Deprecated, use .url #1654", DeprecationWarning, stacklevel=2)
         return self._url
 
     @reify
@@ -792,7 +735,7 @@ class ClientResponse(HeadersMixin):
 
     @reify
     def history(self) -> Tuple['ClientResponse', ...]:
-        """A sequence of of responses, if redirects occurred."""
+        """A sequence of responses, if redirects occurred."""
         return self._history
 
     @reify
@@ -936,6 +879,19 @@ class ClientResponse(HeadersMixin):
         self._cleanup_writer()
         return noop()
 
+    @property
+    def ok(self) -> bool:
+        """Returns ``True`` if ``status`` is less than ``400``, ``False`` if not.
+
+        This is **not** a check for ``200 OK`` but a check that the response
+        status is under 400.
+        """
+        try:
+            self.raise_for_status()
+        except ClientResponseError:
+            return False
+        return True
+
     def raise_for_status(self) -> None:
         if 400 <= self.status:
             # reason should always be not None for a started response
@@ -998,6 +954,9 @@ class ClientResponse(HeadersMixin):
             if mimetype.type == 'application' and mimetype.subtype == 'json':
                 # RFC 7159 states that the default encoding is UTF-8.
                 encoding = 'utf-8'
+            elif self._body is None:
+                raise RuntimeError('Cannot guess the encoding of '
+                                   'a not yet read body')
             else:
                 encoding = chardet.detect(self._body)['encoding']
         if not encoding:
@@ -1025,7 +984,7 @@ class ClientResponse(HeadersMixin):
 
         if content_type:
             ctype = self.headers.get(hdrs.CONTENT_TYPE, '').lower()
-            if not _is_expected_content_type(ctype, content_type):
+            if not is_expected_content_type(ctype, content_type):
                 raise ContentTypeError(
                     self.request_info,
                     self.history,
@@ -1033,14 +992,10 @@ class ClientResponse(HeadersMixin):
                              'unexpected mimetype: %s' % ctype),
                     headers=self.headers)
 
-        stripped = self._body.strip()  # type: ignore
-        if not stripped:
-            return None
-
         if encoding is None:
             encoding = self.get_encoding()
 
-        return loads(stripped.decode(encoding))
+        return loads(self._body.decode(encoding))  # type: ignore
 
     async def __aenter__(self) -> 'ClientResponse':
         return self

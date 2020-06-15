@@ -1,9 +1,9 @@
+.. currentmodule:: aiohttp.web
+
 .. _aiohttp-web-reference:
 
 Server Reference
 ================
-
-.. currentmodule:: aiohttp.web
 
 .. _aiohttp-web-request:
 
@@ -217,14 +217,6 @@ and :ref:`aiohttp-web-signals` handlers.
          if peername is not None:
              host, port = peername
 
-   .. attribute:: loop
-
-      An event loop instance used by HTTP request handling.
-
-      Read-only :class:`asyncio.AbstractEventLoop` property.
-
-      .. deprecated:: 3.5
-
    .. attribute:: cookies
 
       A multidict of all request's cookies.
@@ -253,16 +245,6 @@ and :ref:`aiohttp-web-signals` handlers.
       Read-only :class:`bool` property.
 
       .. versionadded:: 2.3
-
-   .. attribute:: has_body
-
-      Return ``True`` if request's *HTTP BODY* can be read, ``False`` otherwise.
-
-      Read-only :class:`bool` property.
-
-      .. deprecated:: 2.3
-
-         Use :meth:`can_read_body` instead.
 
    .. attribute:: content_type
 
@@ -364,6 +346,18 @@ and :ref:`aiohttp-web-signals` handlers.
 
       :return: a cloned :class:`Request` instance.
 
+   .. method:: get_extra_info(name, default=None)
+
+      Reads extra information from the protocol's transport.
+      If no value associated with ``name`` is found, ``default`` is returned.
+
+      :param str name: The key to look up in the transport extra information.
+
+      :param default: Default value to be used when no value for ``name`` is
+                      found (default is ``None``).
+
+      .. versionadded:: 3.7
+
    .. comethod:: read()
 
       Read request body, returns :class:`bytes` object with body content.
@@ -385,21 +379,19 @@ and :ref:`aiohttp-web-signals` handlers.
          The method **does** store read data internally, subsequent
          :meth:`~Request.text` call will return the same value.
 
-   .. comethod:: json(*, loads=json.loads)
+   .. comethod:: json(*, loads=json.loads, \
+                    content_type='application/json')
 
-      Read request body decoded as *json*.
-
-      The method is just a boilerplate :ref:`coroutine <coroutine>`
-      implemented as::
-
-         async def json(self, *, loads=json.loads):
-             body = await self.text()
-             return loads(body)
+      Read request body decoded as *json*. If request's content-type does not
+      match `content_type` parameter, :class:`web.HTTPBadRequest` get raised.
+      To disable content type check pass ``None`` value.
 
       :param callable loads: any :term:`callable` that accepts
                               :class:`str` and returns :class:`dict`
                               with parsed JSON (:func:`json.loads` by
                               default).
+      :param str content_type: expected value of Content-Type header or ``None``
+                              ('application/json' by default)
 
       .. note::
 
@@ -462,6 +454,18 @@ and :ref:`aiohttp-web-signals` handlers.
           required work will be processed by :mod:`aiohttp.web`
           internal machinery.
 
+   .. comethod:: wait_for_disconnection()
+
+      Returns when the connection that sent this request closes
+
+      If there is no client disconnection during request handling, this
+      coroutine gets cancelled automatically at the end of this request being
+      handled.
+
+      This can be used in handlers as a means of receiving a notification of
+      premature client disconnection.
+
+      .. versionadded:: 4.0
 
 .. class:: Request
 
@@ -644,7 +648,7 @@ StreamResponse
 
       .. seealso:: :attr:`enable_chunked_encoding`
 
-   .. method:: enable_chunked_encoding
+   .. method:: enable_chunked_encoding()
 
       Enables :attr:`chunked` encoding for response. There are no ways to
       disable it back. With enabled :attr:`chunked` encoding each :meth:`write`
@@ -677,7 +681,8 @@ StreamResponse
 
    .. method:: set_cookie(name, value, *, path='/', expires=None, \
                           domain=None, max_age=None, \
-                          secure=None, httponly=None, version=None)
+                          secure=None, httponly=None, version=None, \
+                          samesite=None)
 
       Convenient way for setting :attr:`cookies`, allows to specify
       some additional properties like *max_age* in a single call.
@@ -721,6 +726,14 @@ StreamResponse
                           version of the state management
                           specification the cookie
                           conforms. (Optional, *version=1* by default)
+
+      :param str samesite: Asserts that a cookie must not be sent with
+         cross-origin requests, providing some protection
+         against cross-site request forgery attacks.
+         Generally the value should be one of: ``None``,
+         ``Lax`` or ``Strict``. (optional)
+
+            .. versionadded:: 3.7
 
       .. warning::
 
@@ -869,6 +882,33 @@ Response
       :attr:`~StreamResponse.content_length` to ``None`` too, dropping
       *Content-Length* HTTP header.
 
+
+FileResponse
+^^^^^^^^^^^^^^
+
+.. class:: FileResponse(*, path, chunk_size=256*1024, status=200, reason=None, headers=None)
+
+   The response class used to send files, inherited from :class:`StreamResponse`.
+
+   Supports the ``Content-Range`` and ``If-Range`` HTTP Headers in requests.
+
+   The actual :attr:`body` sending happens in overridden :meth:`~StreamResponse.prepare`.
+
+   :param path: Path to file. Accepts both :class:`str` and :class:`pathlib.Path`.
+   :param int chunk_size: Chunk size in bytes which will be passed into
+                          :meth:`io.RawIOBase.read` in the event that the
+                          ``sendfile`` system call is not supported.
+
+   :param int status: HTTP status code, ``200`` by default.
+
+   :param str reason: HTTP reason. If param is ``None`` reason will be
+                      calculated basing on *status*
+                      parameter. Otherwise pass :class:`str` with
+                      arbitrary *status* explanation..
+
+   :param collections.abc.Mapping headers: HTTP headers that should be added to
+                           response's ones. The ``Content-Type`` response header
+                           will be overridden if provided.
 
 WebSocketResponse
 ^^^^^^^^^^^^^^^^^
@@ -1085,7 +1125,7 @@ WebSocketResponse
 
       :param int code: closing code
 
-      :param message: optional payload of *pong* message,
+      :param message: optional payload of *close* message,
                       :class:`str` (converted to *UTF-8* encoded bytes)
                       or :class:`bytes`.
 
@@ -1216,40 +1256,6 @@ Return :class:`Response` with predefined ``'application/json'``
 content type and *data* encoded by ``dumps`` parameter
 (:func:`json.dumps` by default).
 
-HTTP Exceptions
-^^^^^^^^^^^^^^^
-Errors can also be returned by raising a HTTP exception instance from within
-the handler.
-
-.. class:: HTTPException(*, headers=None, reason=None, text=None, content_type=None)
-
-   Low-level HTTP failure.
-
-   :param headers: headers for the response
-   :type headers: dict or multidict.CIMultiDict
-
-   :param str reason: reason included in the response
-
-   :param str text: response's body
-
-   :param str content_type: response's content type.  This is passed through
-      to the :class:`Response` initializer.
-
-   Sub-classes of ``HTTPException`` exist for the standard HTTP response codes
-   as described in :ref:`aiohttp-web-exceptions` and the expected usage is to
-   simply raise the appropriate exception type to respond with a specific HTTP
-   response code.
-
-   Since ``HTTPException`` is a sub-class of :class:`Response`, it contains the
-   methods and properties that allow you to directly manipulate details of the
-   response.
-
-   .. attribute:: status_code
-
-      HTTP status code for this exception class.  This attribute is usually
-      defined at the class level.  ``self.status_code`` is passed to the
-      :class:`Response` initializer.
-
 
 .. _aiohttp-web-app-and-router:
 
@@ -1284,9 +1290,9 @@ properties for later access from a :ref:`handler<aiohttp-web-handler>` via the
 Although :class:`Application` is a :obj:`dict`-like object, it can't be
 duplicated like one using :meth:`Application.copy`.
 
-.. class:: Application(*, logger=<default>, router=None,middlewares=(), \
+.. class:: Application(*, logger=<default>, middlewares=(), \
                        handler_args=None, client_max_size=1024**2, \
-                       loop=None, debug=...)
+                       debug=...)
 
    The class inherits :class:`dict`.
 
@@ -1294,38 +1300,24 @@ duplicated like one using :meth:`Application.copy`.
 
                   By default the value is ``logging.getLogger("aiohttp.web")``
 
-   :param router: :class:`aiohttp.abc.AbstractRouter` instance, the system
-                  creates :class:`UrlDispatcher` by default if
-                  *router* is ``None``.
-
-      .. deprecated:: 3.3
-
-         The custom routers support is deprecated, the parameter will
-         be removed in 4.0.
-
    :param middlewares: :class:`list` of middleware factories, see
                        :ref:`aiohttp-web-middlewares` for details.
 
    :param handler_args: dict-like object that overrides keyword arguments of
-                        :meth:`Application.make_handler`
+                        :class:`AppRunner` constructor.
 
    :param client_max_size: client's maximum size in a request, in
                            bytes.  If a POST request exceeds this
                            value, it raises an
                            `HTTPRequestEntityTooLarge` exception.
 
-   :param loop: event loop
-
-      .. deprecated:: 2.0
-
-         The parameter is deprecated. Loop is get set during freeze
-         stage.
-
    :param debug: Switches debug mode.
 
       .. deprecated:: 3.5
 
-         Use asyncio :ref:`asyncio-debug-mode` instead.
+         The argument does nothing starting from 4.0,
+         use asyncio :ref:`asyncio-debug-mode` instead.
+
 
    .. attribute:: router
 
@@ -1334,12 +1326,6 @@ duplicated like one using :meth:`Application.copy`.
    .. attribute:: logger
 
       :class:`logging.Logger` instance for storing application logs.
-
-   .. attribute:: loop
-
-      :ref:`event loop<asyncio-event-loop>` used for processing HTTP requests.
-
-      .. deprecated:: 3.5
 
    .. attribute:: debug
 
@@ -1374,7 +1360,7 @@ duplicated like one using :meth:`Application.copy`.
           async def on_startup(app):
               pass
 
-      .. seealso:: :ref:`aiohttp-web-signals`.
+      .. seealso:: :ref:`aiohttp-web-signals` and :ref:`aiohttp-web-cleanup-ctx`.
 
    .. attribute:: on_shutdown
 
@@ -1460,64 +1446,18 @@ duplicated like one using :meth:`Application.copy`.
       The table is a :class:`list` of :class:`RouteDef` items or
       :class:`RouteTableDef`.
 
+      :returns: :class:`list` of registered :class:`AbstractRoute` instances.
+
       The method is a shortcut for
       ``app.router.add_routes(routes_table)``, see also
       :meth:`UrlDispatcher.add_routes`.
 
       .. versionadded:: 3.1
 
-   .. method:: make_handler(loop=None, **kwargs)
+      .. versionchanged:: 3.7
 
-      Creates HTTP protocol factory for handling requests.
-
-      :param loop: :ref:`event loop<asyncio-event-loop>` used
-        for processing HTTP requests.
-
-        If param is ``None`` :func:`asyncio.get_event_loop`
-        used for getting default event loop.
-
-        .. deprecated:: 2.0
-
-      :param bool tcp_keepalive: Enable TCP Keep-Alive. Default: ``True``.
-      :param int keepalive_timeout: Number of seconds before closing Keep-Alive
-        connection. Default: ``75`` seconds (NGINX's default value).
-      :param logger: Custom logger object. Default:
-        :data:`aiohttp.log.server_logger`.
-      :param access_log: Custom logging object. Default:
-        :data:`aiohttp.log.access_logger`.
-      :param access_log_class: Class for `access_logger`. Default:
-        :data:`aiohttp.helpers.AccessLogger`.
-        Must to be a subclass of :class:`aiohttp.abc.AbstractAccessLogger`.
-      :param str access_log_format: Access log format string. Default:
-        :attr:`helpers.AccessLogger.LOG_FORMAT`.
-      :param int max_line_size: Optional maximum header line size. Default:
-        ``8190``.
-      :param int max_headers: Optional maximum header size. Default: ``32768``.
-      :param int max_field_size: Optional maximum header field size. Default:
-        ``8190``.
-
-      :param float lingering_time: Maximum time during which the server
-        reads and ignores additional data coming from the client when
-        lingering close is on.  Use ``0`` to disable lingering on
-        server channel closing.
-
-      You should pass result of the method as *protocol_factory* to
-      :meth:`~asyncio.AbstractEventLoop.create_server`, e.g.::
-
-         loop = asyncio.get_event_loop()
-
-         app = Application()
-
-         # setup route table
-         # app.router.add_route(...)
-
-         await loop.create_server(app.make_handler(),
-                                  '0.0.0.0', 8080)
-
-      .. deprecated:: 3.2
-
-         The method is deprecated and will be removed in future
-         aiohttp versions.  Please use :ref:`aiohttp-web-app-runners` instead.
+         Return value updated from ``None`` to :class:`list` of
+         :class:`AbstractRoute` instances.
 
    .. comethod:: startup()
 
@@ -1641,8 +1581,7 @@ Router is any object that implements :class:`AbstractRouter` interface.
        *variable rule* like ``'/a/{var}'`` (see
        :ref:`handling variable paths <aiohttp-web-variable-handler>`)
 
-      Pay attention please: *handler* is converted to coroutine internally when
-      it is a regular function.
+      Pay attention please: *handler* must be a coroutine.
 
       :param str method: HTTP method for route. Should be one of
                          ``'GET'``, ``'POST'``, ``'PUT'``,
@@ -1669,7 +1608,14 @@ Router is any object that implements :class:`AbstractRouter` interface.
       The table is a :class:`list` of :class:`RouteDef` items or
       :class:`RouteTableDef`.
 
+      :returns: :class:`list` of registered :class:`AbstractRoute` instances.
+
       .. versionadded:: 2.3
+
+      .. versionchanged:: 3.7
+
+         Return value updated from ``None`` to :class:`list` of
+         :class:`AbstractRoute` instances.
 
    .. method:: add_get(path, handler, *, name=None, allow_head=True, **kwargs)
 
@@ -2180,6 +2126,13 @@ The definition is created by functions like :func:`get` or
 
       Abstract method, should be overridden by subclasses.
 
+      :returns: :class:`list` of registered :class:`AbstractRoute` objects.
+
+      .. versionchanged:: 3.7
+
+         Return value updated from ``None`` to :class:`list` of
+         :class:`AbstractRoute` instances.
+
 
 .. class:: RouteDef
 
@@ -2565,6 +2518,32 @@ application on specific TCP or Unix socket, e.g.::
    :param kwargs: named parameters to pass into
                   web protocol.
 
+   Supported *kwargs*:
+
+   :param bool tcp_keepalive: Enable TCP Keep-Alive. Default: ``True``.
+   :param int keepalive_timeout: Number of seconds before closing Keep-Alive
+        connection. Default: ``75`` seconds (NGINX's default value).
+   :param logger: Custom logger object. Default:
+        :data:`aiohttp.log.server_logger`.
+   :param access_log: Custom logging object. Default:
+        :data:`aiohttp.log.access_logger`.
+   :param access_log_class: Class for `access_logger`. Default:
+        :data:`aiohttp.helpers.AccessLogger`.
+        Must to be a subclass of :class:`aiohttp.abc.AbstractAccessLogger`.
+   :param str access_log_format: Access log format string. Default:
+        :attr:`helpers.AccessLogger.LOG_FORMAT`.
+   :param int max_line_size: Optional maximum header line size. Default:
+        ``8190``.
+   :param int max_headers: Optional maximum header size. Default: ``32768``.
+   :param int max_field_size: Optional maximum header field size. Default:
+        ``8190``.
+
+   :param float lingering_time: Maximum time during which the server
+        reads and ignores additional data coming from the client when
+        lingering close is on.  Use ``0`` to disable lingering on
+        server channel closing.
+
+
    .. attribute:: app
 
       Read-only attribute for accessing to :class:`Application` served
@@ -2748,8 +2727,8 @@ Utilities
    .. seealso:: :ref:`aiohttp-web-file-upload`
 
 
-.. function:: run_app(app, *, host=None, port=None, path=None, \
-                      sock=None, shutdown_timeout=60.0, \
+.. function:: run_app(app, *, debug=False, host=None, port=None, \
+                      path=None, sock=None, shutdown_timeout=60.0, \
                       ssl_context=None, print=print, backlog=128, \
                       access_log_class=aiohttp.helpers.AccessLogger, \
                       access_log_format=aiohttp.helpers.AccessLogger.LOG_FORMAT, \
@@ -2777,6 +2756,8 @@ Utilities
 
    :param app: :class:`Application` instance to run or a *coroutine*
                that returns an application.
+
+   :param bool debug: enable :ref:`asyncio debug mode <asyncio-debug-mode>` if ``True``.
 
    :param str host: TCP/IP host or a sequence of hosts for HTTP server.
                     Default is ``'0.0.0.0'`` if *port* has been specified

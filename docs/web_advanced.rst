@@ -1,10 +1,9 @@
+.. currentmodule:: aiohttp.web
+
 .. _aiohttp-web-advanced:
 
 Web Server Advanced
 ===================
-
-.. currentmodule:: aiohttp.web
-
 
 Unicode support
 ---------------
@@ -20,103 +19,22 @@ But in case of custom regular expressions for
 *percent encoded*: if you pass Unicode patterns they don't match to
 *requoted* path.
 
+Peer disconnection
+------------------
 
-Web Handler Cancellation
-------------------------
+When a client peer is gone a subsequent reading or writing raises :exc:`OSError`
+or more specific exception like :exc:`ConnectionResetError`.
 
-.. warning::
+The reason for disconnection is vary; it can be a network issue or explicit
+socket closing on the peer side without reading the whole server response.
 
-   :term:`web-handler` execution could be canceled on every ``await``
-   if client drops connection without reading entire response's BODY.
-
-   The behavior is very different from classic WSGI frameworks like
-   Flask and Django.
-
-Sometimes it is a desirable behavior: on processing ``GET`` request the
-code might fetch data from database or other web resource, the
-fetching is potentially slow.
-
-Canceling this fetch is very good: the peer dropped connection
-already, there is no reason to waste time and resources (memory etc) by
-getting data from DB without any chance to send it back to peer.
-
-But sometimes the cancellation is bad: on ``POST`` request very often
-is needed to save data to DB regardless to peer closing.
-
-Cancellation prevention could be implemented in several ways:
-
-* Applying :func:`asyncio.shield` to coroutine that saves data into DB.
-* Spawning a new task for DB saving
-* Using aiojobs_ or other third party library.
-
-:func:`asyncio.shield` works pretty good. The only disadvantage is you
-need to split web handler into exactly two async functions: one
-for handler itself and other for protected code.
-
-For example the following snippet is not safe::
+*aiohttp* handles disconnection properly but you can handle it explicitly, e.g.::
 
    async def handler(request):
-       await asyncio.shield(write_to_redis(request))
-       await asyncio.shield(write_to_postgres(request))
-       return web.Response(text='OK')
-
-Cancellation might be occurred just after saving data in REDIS,
-``write_to_postgres`` will be not called.
-
-Spawning a new task is much worse: there is no place to ``await``
-spawned tasks::
-
-   async def handler(request):
-       request.loop.create_task(write_to_redis(request))
-       return web.Response(text='OK')
-
-In this case errors from ``write_to_redis`` are not awaited, it leads
-to many asyncio log messages *Future exception was never retrieved*
-and *Task was destroyed but it is pending!*.
-
-Moreover on :ref:`aiohttp-web-graceful-shutdown` phase *aiohttp* don't
-wait for these tasks, you have a great chance to loose very important
-data.
-
-On other hand aiojobs_ provides an API for spawning new jobs and
-awaiting their results etc. It stores all scheduled activity in
-internal data structures and could terminate them gracefully::
-
-   from aiojobs.aiohttp import setup, spawn
-
-   async def coro(timeout):
-       await asyncio.sleep(timeout)  # do something in background
-
-   async def handler(request):
-       await spawn(request, coro())
-       return web.Response()
-
-   app = web.Application()
-   setup(app)
-   app.router.add_get('/', handler)
-
-All not finished jobs will be terminated on
-:attr:`Application.on_cleanup` signal.
-
-To prevent cancellation of the whole :term:`web-handler` use
-``@atomic`` decorator::
-
-   from aiojobs.aiohttp import atomic
-
-   @atomic
-   async def handler(request):
-       await write_to_db()
-       return web.Response()
-
-   app = web.Application()
-   setup(app)
-   app.router.add_post('/', handler)
-
-It prevents all ``handler`` async function from cancellation,
-``write_to_db`` will be never interrupted.
-
-.. _aiojobs: http://aiojobs.readthedocs.io/en/latest/
-
+       try:
+           text = await request.text()
+       except OSError:
+           # disconnected
 
 Passing a coroutine into run_app and Gunicorn
 ---------------------------------------------
@@ -415,7 +333,7 @@ tasks also).
   :attr:`Application.on_startup` and :attr:`Application.on_shutdown`,
   :attr:`Application.on_cleanup`) are executed inside the same context.
 
-  E.g. all context modifications made on application startup a visible on teardown.
+  E.g. all context modifications made on application startup are visible on teardown.
 
 * On every request handling *aiohttp* creates a context copy. :term:`web-handler` has
   all variables installed on initialization stage. But the context modification made by
@@ -483,11 +401,17 @@ response. For example, here's a simple *middleware* which appends
 
     from aiohttp.web import middleware
 
-    @middleware
     async def middleware(request, handler):
         resp = await handler(request)
         resp.text = resp.text + ' wink'
         return resp
+
+.. warning::
+
+   As of version ``4.0.0`` "new-style" middleware is default and the
+   ``@middleware`` decorator is not required (and is deprecated), you can
+   simply remove the decorator. "Old-style" middleware (a coroutine which
+   returned a coroutine) is no longer supported.
 
 .. note::
 
@@ -531,14 +455,12 @@ The following code demonstrates middlewares execution order::
        print('Handler function called')
        return web.Response(text="Hello")
 
-   @web.middleware
    async def middleware1(request, handler):
        print('Middleware 1 called')
        response = await handler(request)
        print('Middleware 1 finished')
        return response
 
-   @web.middleware
    async def middleware2(request, handler):
        print('Middleware 2 called')
        response = await handler(request)
@@ -567,7 +489,6 @@ a JSON REST service::
 
     from aiohttp import web
 
-    @web.middleware
     async def error_middleware(request, handler):
         try:
             response = await handler(request)
@@ -586,17 +507,19 @@ a JSON REST service::
 Middleware Factory
 ^^^^^^^^^^^^^^^^^^
 
-A *middleware factory* is a function that creates a middleware with passed arguments. For example, here's a trivial *middleware factory*::
+A *middleware factory* is a function that creates a middleware with passed
+arguments. For example, here's a trivial *middleware factory*::
 
     def middleware_factory(text):
-        @middleware
         async def sample_middleware(request, handler):
             resp = await handler(request)
             resp.text = resp.text + text
             return resp
         return sample_middleware
 
-Remember that contrary to regular middlewares you need the result of a middleware factory not the function itself. So when passing a middleware factory to an app you actually need to call it::
+Note that in contrast to regular middlewares, a middleware factory should
+return the function, not the value. So when passing a middleware factory
+to the app you actually need to call it::
 
     app = web.Application(middlewares=[middleware_factory(' wink')])
 
@@ -694,10 +617,6 @@ one ``yield``.
 
 *aiohttp* guarantees that *cleanup code* is called if and only if
 *startup code* was successfully finished.
-
-Asynchronous generators are supported by Python 3.6+, on Python 3.5
-please use `async_generator <https://pypi.org/project/async_generator/>`_
-library.
 
 .. versionadded:: 3.1
 
@@ -849,6 +768,9 @@ The simple startup code for serving HTTP site on ``'localhost'``, port
     await runner.setup()
     site = web.TCPSite(runner, 'localhost', 8080)
     await site.start()
+
+    while True:
+        await asyncio.sleep(3600)  # sleep forever
 
 To stop serving call :meth:`AppRunner.cleanup`::
 

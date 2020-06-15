@@ -1,6 +1,7 @@
 - Contributors -
 ----------------
 A. Jesse Jiryu Davis
+Adam Bannister
 Adam Cooper
 Adam Mills
 Adrián Chaves
@@ -39,11 +40,13 @@ Andrii Soldatenko
 Antoine Pietri
 Anton Kasyanov
 Anton Zhdan-Pushkin
+Artem Yushkovskiy
 Arthur Darcet
 Ben Bader
 Ben Timby
 Benedikt Reinartz
 Boris Feld
+Borys Vorona
 Boyi Chen
 Brett Cannon
 Brian C. Lane
@@ -74,6 +77,7 @@ Denis Matiychuk
 Dennis Kliban
 Dima Veselov
 Dimitar Dimitrov
+Diogo Dutra da Mata
 Dmitriy Safonov
 Dmitry Doroshev
 Dmitry Lukashin
@@ -86,14 +90,20 @@ Dustin J. Mitchell
 Eduard Iskandarov
 Eli Ribble
 Elizabeth Leddy
+Emil Melnikov
 Enrique Saez
 Eric Sheng
 Erich Healy
+Erik Peterson
 Eugene Chernyshov
+Eugene Ershov
 Eugene Naydenov
 Eugene Nikolaiev
 Eugene Tolmachev
+Evan Kepner
 Evert Lammerts
+Felix Yan
+Fernanda Guimarães
 FichteFoll
 Florian Scheffler
 Frederik Gladhorn
@@ -108,6 +118,7 @@ Gustavo Carneiro
 Günther Jena
 Hans Adema
 Harmon Y.
+Hrishikesh Paranjape
 Hu Bo
 Hugh Young
 Hugo Herter
@@ -118,12 +129,14 @@ Igor Mozharovsky
 Igor Pavlov
 Ilya Chichak
 Ingmar Steen
+Ivan Larin
 Jacob Champion
 Jaesung Lee
 Jake Davis
 Jakob Ackermann
 Jakub Wilk
 Jashandeep Sohi
+Jens Steinhauser
 Jeongkyu Shin
 Jeroen van der Heijden
 Jesus Cea
@@ -132,6 +145,7 @@ Jinkyu Yi
 Joel Watts
 Jon Nabozny
 Jonas Obrist
+Jonny Tan
 Joongi Kim
 Josep Cugat
 Joshu Coats
@@ -143,9 +157,11 @@ Justas Trimailovas
 Justin Foo
 Justin Turner Arthur
 Kay Zheng
+Kevin Samuel
 Kimmo Parviainen-Jalanko
 Kirill Klenov
 Kirill Malovitsa
+Konstantin Valetov
 Kyrylo Perevozchikov
 Lars P. Søndergaard
 Louis-Philippe Huberdeau
@@ -160,13 +176,16 @@ Manuel Miranda
 Marat Sharafutdinov
 Marco Paolini
 Mariano Anaya
+Mariusz Masztalerczuk
 Martijn Pieters
 Martin Melka
 Martin Richard
 Mathias Fröjdman
 Mathieu Dugré
+Matt VanEseltine
 Matthieu Hauglustaine
 Matthieu Rigal
+Meet Mangukiya
 Michael Ihnatenko
 Mikhail Burshteyn
 Mikhail Kashkin
@@ -183,6 +202,7 @@ Nikolay Kim
 Nikolay Novik
 Oisin Aylward
 Olaf Conradi
+Oleg Höfling
 Pahaz Blinov
 Panagiotis Kolokotronis
 Pankaj Pandey
@@ -198,10 +218,12 @@ Pepe Osca
 Philipp A.
 Pieter van Beek
 Rafael Viotti
+Raphael Bialon
 Raúl Cumplido
 Required Field
 Robert Lu
 Robert Nikolich
+Roman Markeloff
 Roman Podoliaka
 Samuel Colvin
 Sean Hunt
@@ -222,6 +244,7 @@ Stepan Pletnev
 Stephen Granade
 Steven Seguin
 Sunghyun Hwang
+Sunit Deshpande
 Sviatoslav Bulbakha
 Sviatoslav Sydorenko
 Taha Jahangir
@@ -239,7 +262,9 @@ Vaibhav Sagar
 Vamsi Krishna Avula
 Vasiliy Faronov
 Vasyl Baran
+Victor Collod
 Victor Kovtun
+Victor Makarov
 Vikas Kawadia
 Viktor Danyliuk
 Ville Skyttä
@@ -251,6 +276,7 @@ Vladimir Kozlovski
 Vladimir Rutsky
 Vladimir Shulyak
 Vladimir Zakharov
+Vladyslav Bohaichuk
 Vladyslav Bondar
 W. Trevor King
 Wei Lin
@@ -269,5 +295,7 @@ Young-Ho Cha
 Yuriy Shatrov
 Yury Selivanov
 Yusuke Tsutsumi
+Yuval Ofir
+Zlatan Sičanica
 Марк Коренберг
 Семён Марьясин

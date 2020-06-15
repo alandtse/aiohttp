@@ -28,7 +28,6 @@ flake: .flake
                       $(shell find tests -type f) \
                       $(shell find examples -type f)
 	flake8 aiohttp examples tests
-	python setup.py check -rms
 	@if ! isort -c -rc aiohttp tests examples; then \
             echo "Import sort errors, run 'make isort' to fix them!!!"; \
             isort --diff -rc aiohttp tests examples; \
@@ -61,21 +60,21 @@ check_changes:
 	@touch .develop
 
 test: .develop
-	@pytest -c pytest.ci.ini -q
+	@pytest -q
 
 vtest: .develop
-	@pytest -c pytest.ci.ini -s -v
+	@pytest -s -v
 
 cov cover coverage:
 	tox
 
 cov-dev: .develop
-	@pytest -c pytest.ci.ini --cov-report=html
+	@pytest --cov-report=html
 	@echo "open file://`pwd`/htmlcov/index.html"
 
 cov-ci-run: .develop
 	@echo "Regular run"
-	@pytest -c pytest.ci.ini --cov-report=html
+	@pytest --cov-report=html
 
 cov-dev-full: cov-ci-run
 	@echo "open file://`pwd`/htmlcov/index.html"
@@ -131,5 +130,7 @@ doc-spelling:
 install:
 	@pip install -U 'pip'
 	@pip install -Ur requirements/dev.txt
+
+install-dev: .develop
 
 .PHONY: all build flake test vtest cov clean doc mypy

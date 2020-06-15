@@ -15,6 +15,7 @@ arg
 Arsenic
 async
 asyncio
+asynctest
 auth
 autocalculated
 autodetection
@@ -152,6 +153,7 @@ middlewares
 miltidict
 misbehaviors
 misformed
+Mixcloud
 Mongo
 msg
 MsgType
@@ -184,9 +186,10 @@ param
 params
 pathlib
 peername
+pickleable
 ping
 pipelining
-pluggable
+plugable
 plugin
 poller
 pong
@@ -205,6 +208,7 @@ pytest
 Pytest
 Quickstart
 quote’s
+readline
 readonly
 readpayload
 rebase

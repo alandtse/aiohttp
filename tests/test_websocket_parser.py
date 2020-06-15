@@ -22,7 +22,7 @@ from aiohttp.http_websocket import (
 
 def build_frame(message, opcode, use_mask=False, noheader=False, is_fin=True,
                 compress=False):
-    """Send a frame over the websocket with message as its payload."""
+    # Send a frame over the websocket with message as its payload.
     if compress:
         compressobj = zlib.compressobj(wbits=-9)
         message = compressobj.compress(message)
@@ -70,7 +70,7 @@ def build_frame(message, opcode, use_mask=False, noheader=False, is_fin=True,
 
 
 def build_close_frame(code=1000, message=b'', noheader=False):
-    """Close the websocket, sending the specified code and message."""
+    # Close the websocket, sending the specified code and message.
     if isinstance(message, str):  # pragma: no cover
         message = message.encode('utf-8')
     return build_frame(
@@ -411,16 +411,6 @@ def test_websocket_mask_cython_empty() -> None:
     http_websocket._websocket_mask_cython(
         websocket_mask_mask, message)
     assert message == bytearray()
-
-
-def test_msgtype_aliases() -> None:
-    assert aiohttp.WSMsgType.TEXT == aiohttp.WSMsgType.text
-    assert aiohttp.WSMsgType.BINARY == aiohttp.WSMsgType.binary
-    assert aiohttp.WSMsgType.PING == aiohttp.WSMsgType.ping
-    assert aiohttp.WSMsgType.PONG == aiohttp.WSMsgType.pong
-    assert aiohttp.WSMsgType.CLOSE == aiohttp.WSMsgType.close
-    assert aiohttp.WSMsgType.CLOSED == aiohttp.WSMsgType.closed
-    assert aiohttp.WSMsgType.ERROR == aiohttp.WSMsgType.error
 
 
 def test_parse_compress_frame_single(parser) -> None:
