@@ -7,7 +7,7 @@ import sys
 import traceback
 import warnings
 from hashlib import md5, sha1, sha256
-from http.cookies import CookieError, Morsel, SimpleCookie
+from http.cookies import BaseCookie, CookieError, Morsel, SimpleCookie
 from types import MappingProxyType, TracebackType
 from typing import (
     TYPE_CHECKING,
@@ -736,7 +736,7 @@ class ClientResponse(HeadersMixin):
         assert isinstance(url, URL)
 
         self.method = method
-        self.cookies = SimpleCookie()  # type: SimpleCookie[str]
+        self.cookies = []  # type: List[Tuple[str, BaseCookie[str]]]
 
         self._real_url = url
         self._url = url.with_fragment(None)
@@ -922,7 +922,10 @@ class ClientResponse(HeadersMixin):
         # cookies
         for hdr in self.headers.getall(hdrs.SET_COOKIE, ()):
             try:
-                self.cookies.load(hdr)
+                new_cookie = SimpleCookie()
+                new_cookie.load(hdr)
+                new_cookie_list = list(new_cookie.items())
+                self.cookies = self.cookies + new_cookie_list  # type: ignore
             except CookieError as exc:
                 client_logger.warning("Can not load response cookies: %s", exc)
         return self
