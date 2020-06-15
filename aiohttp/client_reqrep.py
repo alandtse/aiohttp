@@ -859,7 +859,7 @@ class ClientResponse(HeadersMixin):
         # cookies
         for hdr in self.headers.getall(hdrs.SET_COOKIE, ()):
             try:
-                new_cookie = SimpleCookie()
+                new_cookie = SimpleCookie()  # type: SimpleCookie[Any]
                 new_cookie.load(hdr)
                 new_cookie_list = list(new_cookie.items())
                 self.cookies = self.cookies + new_cookie_list  # type: ignore
