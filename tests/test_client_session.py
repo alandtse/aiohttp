@@ -3,7 +3,7 @@ import contextlib
 import gc
 import json
 import re
-from http.cookies import SimpleCookie
+from http.cookies import Morsel
 from io import BytesIO
 from unittest import mock
 
@@ -511,9 +511,11 @@ async def test_cookie_jar_usage(loop, aiohttp_client) -> None:
     # Updating the cookie jar with the response cookies
     assert jar.update_cookies.called
     resp_cookies = jar.update_cookies.call_args[0][0]
-    assert isinstance(resp_cookies, SimpleCookie)
-    assert "response" in resp_cookies
-    assert resp_cookies["response"].value == "resp_value"
+    assert isinstance(resp_cookies, list)
+    assert isinstance(resp_cookies[0], tuple)
+    assert isinstance(resp_cookies[0][1], Morsel)
+    assert "response" == resp_cookies[0][0]
+    assert "resp_value" == resp_cookies[0][1].coded_value
 
 
 async def test_session_default_version(loop) -> None:
