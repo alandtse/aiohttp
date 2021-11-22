@@ -12,6 +12,7 @@ import pytest
 from re_assert import Matches
 
 from aiohttp import streams
+from aiohttp.helpers import PY_310
 
 DATA = b"line1\nline2\nline3\n"
 
@@ -82,12 +83,25 @@ class TestStreamReader:
         with pytest.raises(RuntimeError):
             await stream._wait("test")
 
+    @pytest.mark.xfail(
+        PY_310,
+        reason="No idea why ClientRequest() is constructed out of loop but "
+        "it calls `asyncio.get_event_loop()`",
+        raises=DeprecationWarning,
+    )
     def test_ctor_global_loop(self) -> None:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        stream = streams.StreamReader(mock.Mock(_reading_paused=False), 2 ** 16)
+        try:
+            stream = streams.StreamReader(mock.Mock(_reading_paused=False), 2 ** 16)
 
-        assert stream._loop is loop
+            assert stream._loop is loop
+        finally:  # Otherwise an unstopped/unclosed loop affects the next test
+            # Cleanup, leaks into `test_at_eof` otherwise:
+            loop.stop()
+            loop.run_forever()
+            loop.close()
+            gc.collect()
 
     async def test_at_eof(self) -> None:
         stream = self._make_one()
@@ -393,6 +407,117 @@ class TestStreamReader:
         stream.set_exception(ValueError())
         with pytest.raises(ValueError):
             await stream.readline()
+
+    async def test_readuntil(self) -> None:
+        loop = asyncio.get_event_loop()
+        # Read one chunk. 'readuntil' will need to wait for the data
+        # to come from 'cb'
+        stream = self._make_one()
+        stream.feed_data(b"chunk1 ")
+        read_task = loop.create_task(stream.readuntil(b"*"))
+
+        def cb():
+            stream.feed_data(b"chunk2 ")
+            stream.feed_data(b"chunk3 ")
+            stream.feed_data(b"* chunk4")
+
+        loop.call_soon(cb)
+
+        line = await read_task
+        assert b"chunk1 chunk2 chunk3 *" == line
+
+        stream.feed_eof()
+        data = await stream.read()
+        assert b" chunk4" == data
+
+    async def test_readuntil_limit_with_existing_data(self) -> None:
+        # Read one chunk. The data is in StreamReader's buffer
+        # before the event loop is run.
+
+        stream = self._make_one(limit=2)
+        stream.feed_data(b"li")
+        stream.feed_data(b"ne1&line2&")
+
+        with pytest.raises(ValueError):
+            await stream.readuntil(b"&")
+        # The buffer should contain the remaining data after exception
+        stream.feed_eof()
+        data = await stream.read()
+        assert b"line2&" == data
+
+    async def test_readuntil_limit(self) -> None:
+        loop = asyncio.get_event_loop()
+        # Read one chunk. StreamReaders are fed with data after
+        # their 'readuntil' methods are called.
+        stream = self._make_one(limit=4)
+
+        def cb():
+            stream.feed_data(b"chunk1")
+            stream.feed_data(b"chunk2$")
+            stream.feed_data(b"chunk3#")
+            stream.feed_eof()
+
+        loop.call_soon(cb)
+
+        with pytest.raises(ValueError):
+            await stream.readuntil(b"$")
+        data = await stream.read()
+        assert b"chunk3#" == data
+
+    async def test_readuntil_nolimit_nowait(self) -> None:
+        # All needed data for the first 'readuntil' call will be
+        # in the buffer.
+        stream = self._make_one()
+        data = b"line1!line2!line3!"
+        stream.feed_data(data[:6])
+        stream.feed_data(data[6:])
+
+        line = await stream.readuntil(b"!")
+        assert b"line1!" == line
+
+        stream.feed_eof()
+        data = await stream.read()
+        assert b"line2!line3!" == data
+
+    async def test_readuntil_eof(self) -> None:
+        stream = self._make_one()
+        stream.feed_data(b"some data")
+        stream.feed_eof()
+
+        line = await stream.readuntil(b"@")
+        assert b"some data" == line
+
+    async def test_readuntil_empty_eof(self) -> None:
+        stream = self._make_one()
+        stream.feed_eof()
+
+        line = await stream.readuntil(b"@")
+        assert b"" == line
+
+    async def test_readuntil_read_byte_count(self) -> None:
+        stream = self._make_one()
+        data = b"line1!line2!line3!"
+        stream.feed_data(data)
+
+        await stream.readuntil(b"!")
+
+        data = await stream.read(7)
+        assert b"line2!l" == data
+
+        stream.feed_eof()
+        data = await stream.read()
+        assert b"ine3!" == data
+
+    async def test_readuntil_exception(self) -> None:
+        stream = self._make_one()
+        stream.feed_data(b"line#")
+
+        data = await stream.readuntil(b"#")
+        assert b"line#" == data
+
+        stream.set_exception(ValueError())
+        with pytest.raises(ValueError):
+            await stream.readuntil(b"#")
 
     async def test_readexactly_zero_or_less(self) -> None:
         # Read exact number of bytes (zero or less).
@@ -1379,3 +1504,7 @@ async def test_stream_reader_iter_chunks_chunked_encoding(protocol) -> None:
     async for data, end_of_chunk in stream.iter_chunks():
         assert (data, end_of_chunk) == (next(it), True)
     pytest.raises(StopIteration, next, it)
+
+
+def test_isinstance_check() -> None:
+    assert isinstance(streams.EMPTY_PAYLOAD, streams.StreamReader)

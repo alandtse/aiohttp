@@ -14,7 +14,10 @@ from aiohttp.test_utils import loop_context
 try:
     import trustme
 
-    TRUSTME = True
+    # Check if the CA is available in runtime, MacOS on Py3.10 fails somehow
+    trustme.CA()
+
+    TRUSTME: bool = True
 except ImportError:
     TRUSTME = False
 
@@ -23,9 +26,8 @@ pytest_plugins = ["aiohttp.pytest_plugin", "pytester"]
 
 @pytest.fixture
 def shorttmpdir():
-    """Provides a temporary directory with a shorter file system path than the
-    tmpdir fixture.
-    """
+    # Provides a temporary directory with a shorter file system path than the
+    # tmpdir fixture.
     tmpdir = pathlib.Path(tempfile.mkdtemp())
     yield tmpdir
     # str(tmpdir) is required, Python 3.5 doesn't have __fspath__
@@ -36,13 +38,13 @@ def shorttmpdir():
 @pytest.fixture
 def tls_certificate_authority():
     if not TRUSTME:
-        pytest.xfail("trustme fails on 32bit Linux")
+        pytest.xfail("trustme is not supported")
     return trustme.CA()
 
 
 @pytest.fixture
 def tls_certificate(tls_certificate_authority):
-    return tls_certificate_authority.issue_server_cert(
+    return tls_certificate_authority.issue_cert(
         "localhost",
         "127.0.0.1",
         "::1",
@@ -51,7 +53,7 @@ def tls_certificate(tls_certificate_authority):
 
 @pytest.fixture
 def ssl_ctx(tls_certificate):
-    ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+    ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     tls_certificate.configure_cert(ssl_ctx)
     return ssl_ctx
 
