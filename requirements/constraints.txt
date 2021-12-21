@@ -6,7 +6,7 @@ aiosignal==1.2.0
     # via -r requirements/base.txt
 alabaster==0.7.12
     # via sphinx
-async-timeout==4.0.1
+async-timeout==4.0.2
     # via -r requirements/base.txt
 asynctest==0.13.0 ; python_version < "3.8"
     # via -r requirements/base.txt
