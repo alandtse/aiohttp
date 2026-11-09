@@ -1,1 +1,1 @@
-multidict==6.0.2
+multidict==7.2.1
